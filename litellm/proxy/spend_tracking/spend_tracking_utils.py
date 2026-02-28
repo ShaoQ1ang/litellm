@@ -146,12 +146,9 @@ def get_spend_logs_id(
         # Generate a hash from the response object
         id: Optional[str] = generate_hash_from_response(response_obj)
     else:
-        id = cast(Optional[str], response_obj.get("id")) or cast(
-            Optional[str], kwargs.get("litellm_call_id")
-        )
+        # 始终使用 litellm_call_id（与 x-litellm-call-id header 一致）
+        id = cast(Optional[str], kwargs.get("litellm_call_id"))
     return id
-
-
 def _extract_usage_for_ocr_call(response_obj: Any, response_obj_dict: dict) -> dict:
     """
     Extract usage information for OCR/AOCR calls.
