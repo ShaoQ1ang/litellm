@@ -17,6 +17,11 @@ services:
     environment:
       DATABASE_URL: "postgresql://llmproxy:dbpassword9090@db:5432/litellm"
       STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./callback.py:/app/custom_callbacks.py
+    command:
+      - "--config=/app/config.yaml"
     env_file:
       - .env # Load local .env file
     depends_on:
