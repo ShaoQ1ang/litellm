@@ -2871,7 +2871,10 @@ class SpendLogsMetadata(TypedDict):
     litellm_overhead_time_ms: Optional[float]  # LiteLLM overhead time in milliseconds
     cost_breakdown: Optional[
         CostBreakdown
-    ]  # Detailed cost breakdown (input_cost, output_cost, margin, discount, etc.)
+    ]  # Detailed cost breakdown (input_cost, margin, discount, etc.)
+    llm_response_id: Optional[
+        str
+    ]  # Original LLM response ID (e.g., chatcmpl-xxx from OpenAI)
 
 
 class SpendLogsPayload(TypedDict):

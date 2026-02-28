@@ -61,6 +61,7 @@ def _get_spend_logs_metadata(
     cold_storage_object_key: Optional[str] = None,
     litellm_overhead_time_ms: Optional[float] = None,
     cost_breakdown: Optional[CostBreakdown] = None,
+    llm_response_id: Optional[str] = None,  # Original LLM response ID
 ) -> SpendLogsMetadata:
     if metadata is None:
         return SpendLogsMetadata(
@@ -86,6 +87,7 @@ def _get_spend_logs_metadata(
             cold_storage_object_key=cold_storage_object_key,
             litellm_overhead_time_ms=None,
             cost_breakdown=None,
+            llm_response_id=llm_response_id,
         )
     verbose_proxy_logger.debug(
         "getting payload for SpendLogs, available keys in metadata: "
@@ -112,6 +114,7 @@ def _get_spend_logs_metadata(
     clean_metadata["cold_storage_object_key"] = cold_storage_object_key
     clean_metadata["litellm_overhead_time_ms"] = litellm_overhead_time_ms
     clean_metadata["cost_breakdown"] = cost_breakdown
+    clean_metadata["llm_response_id"] = llm_response_id
 
     return clean_metadata
 
@@ -305,6 +308,9 @@ def get_logging_payload(  # noqa: PLR0915
     _model_id = metadata.get("model_info", {}).get("id", "")
     _model_group = metadata.get("model_group", "")
 
+    # Extract LLM original response ID if present (e.g., chatcmpl-xxx from OpenAI)
+    llm_response_id = response_obj_dict.get("id", None)
+
     # Extract overhead from hidden_params if available
     litellm_overhead_time_ms = None
     if standard_logging_payload is not None:
@@ -362,6 +368,7 @@ def get_logging_payload(  # noqa: PLR0915
             if standard_logging_payload is not None
             else None
         ),
+        llm_response_id=llm_response_id,
     )
 
     special_usage_fields = ["completion_tokens", "prompt_tokens", "total_tokens"]
