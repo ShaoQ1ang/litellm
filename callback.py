@@ -267,7 +267,6 @@ class LiteLLMCallbackHandler(CustomLogger):
                 cost = litellm.completion_cost(completion_response=response_obj)
             except Exception:
                 cost = 0.0
-
             print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
 
             # 构建并发送回调

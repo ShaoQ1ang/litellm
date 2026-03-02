@@ -1049,6 +1049,11 @@ def completion_cost(  # noqa: PLR0915
 
         for idx, model in enumerate(potential_model_names):
             try:
+                if verbose_logger.isEnabledFor(logging.DEBUG):
+                    verbose_logger.debug(
+                        f"selected model name for cost calculation: {model}"
+                    )
+
                 if completion_response is not None and (
                     isinstance(completion_response, BaseModel)
                     or isinstance(completion_response, dict)
