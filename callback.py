@@ -262,11 +262,8 @@ class LiteLLMCallbackHandler(CustomLogger):
             serialized_response = self._serialize_response(response_obj)
             usage = serialized_response.get("usage", {}) if isinstance(serialized_response, dict) else {}
 
-            # 计算费用
-            try:
-                cost = litellm.completion_cost(completion_response=response_obj)
-            except Exception:
-                cost = 0.0
+            # 使用 LiteLLM 内部已计算好的成本（避免模型名映射问题）
+            cost = kwargs.get("response_cost", 0)
 
             print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
 
@@ -329,13 +326,8 @@ class LiteLLMCallbackHandler(CustomLogger):
             else:
                 exception_str = str(exception_event) if exception_event else ""
 
-            # 计算费用
-            cost = 0.0
-            try:
-                if response_obj:
-                    cost = litellm.completion_cost(completion_response=response_obj)
-            except Exception:
-                pass
+            # 使用 LiteLLM 内部已计算好的成本（避免模型名映射问题）
+            cost = kwargs.get("response_cost", 0) if response_obj else 0.0
 
             # 获取使用情况
             usage = {}
