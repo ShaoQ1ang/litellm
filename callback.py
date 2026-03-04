@@ -112,21 +112,30 @@ class LiteLLMCallbackHandler(CustomLogger):
         exception: str = "",
     ) -> CallbackData:
         """构建回调数据"""
+        # 兼容两种 token 格式：
+        # - 对话类型：prompt_tokens, completion_tokens
+        # - 图像类型：input_tokens, output_tokens
+        prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens", 0)
+        completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens", 0)
+        
         return CallbackData(
             request_id=request_id,
             model=model,
             messages=messages,
-            # 兼容两种 token 格式：
-            # - 对话类型：prompt_tokens, completion_tokens
-            # - 图像类型：input_tokens, output_tokens
-            prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens", 0)
-            completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens", 0)
+            user=user,
             usage=TokenUsage(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=usage.get("total_tokens", 0),
             ),
-
+            cost=cost,
+            response=response,
+            metadata=metadata,
+            start_time=start_time.astimezone().isoformat() if start_time else datetime.now().astimezone().isoformat(),
+            end_time=end_time.astimezone().isoformat() if end_time else datetime.now().astimezone().isoformat(),
+            status=status,
+            exception=exception,
+        )
     async def _send_callback(self, callback_data: CallbackData) -> bool:
         """
         发送回调数据到 Go 服务器
