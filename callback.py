@@ -196,6 +196,9 @@ class LiteLLMCallbackHandler(CustomLogger):
             return
 
         print(f"[PreCheck] Checking: {request_id} | User: {user_id}")
+        print(f"[PreCheck] URL: {PRECHECK_SERVER_URL}/precheck")
+        print(f"[PreCheck] Request body: api_key={api_key[:8]}*** user_id={user_id} request_id={request_id} model={model}")
+
 
         try:
             # 构建请求体
