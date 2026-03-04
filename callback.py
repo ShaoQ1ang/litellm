@@ -64,60 +64,26 @@ class LiteLLMCallbackHandler(CustomLogger):
 
     def _serialize_response(self, response_obj) -> dict:
         """将 ModelResponse 对象转换为可序列化的字典"""
-        import datetime
-        print(f"[DEBUG _serialize] response_obj type: {type(response_obj)}")
-        print(f"[DEBUG _serialize] response_obj class name: {response_obj.__class__.__name__ if hasattr(response_obj, '__class__') else 'N/A'}")
-        print(f"[DEBUG _serialize] hasattr model_dump: {hasattr(response_obj, 'model_dump')}")
-        print(f"[DEBUG _serialize] hasattr dict: {hasattr(response_obj, 'dict')}")
         if response_obj is None:
             return {}
         if isinstance(response_obj, dict):
-            return self._clean_datetime_fields(response_obj)
+            return response_obj
 
-        # 尝试 Pydantic v2 的 model_dump
+        # 直接返回 model_dump 或 dict，不手动处理 datetime
         if hasattr(response_obj, "model_dump"):
             try:
-                result = response_obj.model_dump(exclude_none=True)
-                print(f"[DEBUG _serialize] model_dump success: {len(result)} keys")
-                return self._clean_datetime_fields(result)
-            except Exception as e:
-                print(f"[DEBUG _serialize] model_dump failed: {e}")
+                return response_obj.model_dump(exclude_none=True)
+            except Exception:
                 pass
 
-        # 尝试 Pydantic v1 的 dict
         if hasattr(response_obj, "dict"):
             try:
-                result = response_obj.dict(exclude_none=True)
-                print(f"[DEBUG _serialize] dict success: {len(result)} keys")
-                return self._clean_datetime_fields(result)
-            except Exception as e:
-                print(f"[DEBUG _serialize] dict failed: {e}")
+                return response_obj.dict(exclude_none=True)
+            except Exception:
                 pass
 
         # 降级为字符串
-        print(f"[DEBUG _serialize] Fallback to raw_response")
         return {"raw_response": str(response_obj)}
-
-    def _clean_datetime_fields(self, data: dict) -> dict:
-        """清理字典中的 datetime 字段，转换为 ISO 格式字符串"""
-        if not isinstance(data, dict):
-            return data
-        result = {}
-        for key, value in data.items():
-            if isinstance(value, datetime.datetime):
-                result[key] = value.isoformat()
-                result[key] = value
-
-        return result
-
-    def _serialize_datetime_value(self, value) -> Any:
-        """序列化单个值，如果是 datetime 则转换"""
-        if isinstance(value, datetime.datetime):
-            return value.isoformat()
-        return value
-        return result
-
-    def _serialize_datetime_value(self, value) -> Any:
         """序列化单个值，如果是 datetime 则转换"""
         if isinstance(value, datetime.datetime):
             return value.isoformat()
@@ -188,7 +154,7 @@ class LiteLLMCallbackHandler(CustomLogger):
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                 response = await client.post(
                     f"{CALLBACK_SERVER_URL}/callback",
-                    json=callback_data.model_dump(),
+                    json=callback_data.model_dump_json(),
                     headers={"Content-Type": "application/json"},
                 )
                 if response.status_code == 200:
