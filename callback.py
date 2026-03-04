@@ -127,7 +127,7 @@ class LiteLLMCallbackHandler(CustomLogger):
             ),
             cost=cost,
             response=response,
-            metadata=metadata,
+            metadata={},
             start_time=start_time.astimezone().isoformat() if start_time else datetime.now().astimezone().isoformat(),
             end_time=end_time.astimezone().isoformat() if end_time else datetime.now().astimezone().isoformat(),
             status=status,
@@ -153,18 +153,13 @@ class LiteLLMCallbackHandler(CustomLogger):
                     headers={"Content-Type": "application/json"},
                 )
                 if response.status_code == 200:
-                    print(f"[Callback] ✓ Success: {request_id}")
                     return True
                 else:
-                    print(f"[Callback] ✗ Failed: {response.status_code} - {response.text}")
+                    print(f"[Callback] ✗ Failed: {response.status_code}")
                     return False
-        except httpx.ConnectError:
-            print(f"[Callback] ✗ Connection Error: Failed to connect to {CALLBACK_SERVER_URL}")
-        except httpx.TimeoutException:
-            print(f"[Callback] ✗ Timeout: Request timed out")
-        except Exception as e:
-            print(f"[Callback] ✗ Error: {type(e).__name__}: {e}")
-        return False
+        except Exception:
+            print(f"[Callback] ✗ Error")
+            return False
 
     # ==================== Proxy Hooks ====================
 
@@ -196,9 +191,7 @@ class LiteLLMCallbackHandler(CustomLogger):
         if not api_key:
             return
 
-        print(f"[PreCheck] Checking: {request_id} | User: {user_id}")
-        print(f"[PreCheck] URL: {PRECHECK_SERVER_URL}/precheck")
-        print(f"[PreCheck] Request body: api_key={api_key[:8]}*** user_id={user_id} request_id={request_id} model={model}")
+        print(f"[PreCheck] {request_id} | User: {user_id}")
 
 
         try:
@@ -220,27 +213,20 @@ class LiteLLMCallbackHandler(CustomLogger):
                 if response.status_code == 200:
                     print(f"[PreCheck] ✓ Passed: {request_id}")
                     return
-
-                # 余额检查失败
                 error_data = response.json()
                 error_msg = error_data.get("error", "Balance check failed")
                 print(f"[PreCheck] ✗ Blocked: {error_msg}")
                 raise HTTPException(status_code=402, detail={"error": error_msg})
-
         except httpx.ConnectError:
-            print(f"[PreCheck] ✗ Connection Error: {PRECHECK_SERVER_URL}")
+            print(f"[PreCheck] ✗ Connection Error")
             raise HTTPException(status_code=503, detail={"error": "Service unavailable"})
-
         except httpx.TimeoutException:
             print(f"[PreCheck] ✗ Timeout: {request_id}")
             raise HTTPException(status_code=504, detail={"error": "Balance check timeout"})
-
         except HTTPException:
-            # 重新抛出 HTTPException
             raise
-
         except Exception as e:
-            print(f"[PreCheck] ✗ Error: {type(e).__name__}: {e}")
+            print(f"[PreCheck] ✗ Error: {type(e).__name__}")
             raise HTTPException(status_code=500, detail={"error": "Internal error"})
 
     # ==================== CustomLogger 方法 ====================
@@ -291,9 +277,7 @@ class LiteLLMCallbackHandler(CustomLogger):
                 except Exception:
                     cost = 0.0
 
-            print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
-
-            # 构建并发送回调
+            print(f"[Success] {request_id} | Cost: {cost}")
             callback_data = self._build_callback_data(
                 request_id=request_id,
                 model=model,
@@ -308,10 +292,8 @@ class LiteLLMCallbackHandler(CustomLogger):
                 status="success",
             )
             await self._send_callback(callback_data)
-
-        except Exception as e:
-            print(f"[Success] ✗ Callback Error: {type(e).__name__}: {e}")
-
+        except Exception:
+            pass
     async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
         """
         失败事件记录 - 发送错误数据到 Go 服务器
@@ -366,9 +348,7 @@ class LiteLLMCallbackHandler(CustomLogger):
                 if isinstance(serialized, dict):
                     usage = serialized.get("usage", {})
 
-            print(f"[Failure] {request_id} | Model: {model} | Exception: {exception_str}")
-
-            # 构建并发送回调
+            print(f"[Failure] {request_id} | {exception_str}")
             callback_data = self._build_callback_data(
                 request_id=request_id,
                 model=model,
@@ -384,10 +364,8 @@ class LiteLLMCallbackHandler(CustomLogger):
                 exception=exception_str,
             )
             await self._send_callback(callback_data)
-
-        except Exception as e:
-            print(f"[Failure] ✗ Callback Error: {type(e).__name__}: {e}")
-
+        except Exception:
+            pass
 
 # ==================== 创建实例 ====================
 
