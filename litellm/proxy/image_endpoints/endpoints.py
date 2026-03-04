@@ -1,3 +1,5 @@
+import uuid
+
 import asyncio
 import traceback
 from typing import List
@@ -105,11 +107,27 @@ async def image_generation(
         if user_model:
             data["model"] = user_model
 
-        ### MODEL ALIAS MAPPING ###
-        # check if model name in model alias map
-        # get the actual model name
         if data["model"] in litellm.model_alias_map:
             data["model"] = litellm.model_alias_map[data["model"]]
+
+        ### LITELLM CALL ID ###
+        # Generate litellm_call_id before pre_call_hook so callbacks can access it
+        # This matches the behavior in common_request_processing.py
+        data["litellm_call_id"] = request.headers.get(
+            "x-litellm-call-id", str(uuid.uuid4())
+        )
+
+        ## LOGGING OBJECT ## - initialize logging object before pre_call_hook
+        # This ensures litellm_logging_obj is set so image_generation() won't regenerate litellm_call_id
+        from datetime import datetime
+        start_time = datetime.now()
+        logging_obj, data = litellm.utils.function_setup(
+            original_function="aimage_generation",
+            rules_obj=litellm.utils.Rules(),
+            start_time=start_time,
+            **data,
+        )
+        data["litellm_logging_obj"] = logging_obj
 
         ### CALL HOOKS ### - modify incoming data / reject request before calling the model
         prompt_value = data.get("prompt")
