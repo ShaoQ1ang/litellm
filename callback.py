@@ -65,6 +65,10 @@ class LiteLLMCallbackHandler(CustomLogger):
     def _serialize_response(self, response_obj) -> dict:
         """将 ModelResponse 对象转换为可序列化的字典"""
         import datetime
+        print(f"[DEBUG _serialize] response_obj type: {type(response_obj)}")
+        print(f"[DEBUG _serialize] response_obj class name: {response_obj.__class__.__name__ if hasattr(response_obj, '__class__') else 'N/A'}")
+        print(f"[DEBUG _serialize] hasattr model_dump: {hasattr(response_obj, 'model_dump')}")
+        print(f"[DEBUG _serialize] hasattr dict: {hasattr(response_obj, 'dict')}")
         if response_obj is None:
             return {}
         if isinstance(response_obj, dict):
@@ -74,19 +78,24 @@ class LiteLLMCallbackHandler(CustomLogger):
         if hasattr(response_obj, "model_dump"):
             try:
                 result = response_obj.model_dump(exclude_none=True)
+                print(f"[DEBUG _serialize] model_dump success: {len(result)} keys")
                 return self._clean_datetime_fields(result)
-            except Exception:
+            except Exception as e:
+                print(f"[DEBUG _serialize] model_dump failed: {e}")
                 pass
 
         # 尝试 Pydantic v1 的 dict
         if hasattr(response_obj, "dict"):
             try:
                 result = response_obj.dict(exclude_none=True)
+                print(f"[DEBUG _serialize] dict success: {len(result)} keys")
                 return self._clean_datetime_fields(result)
-            except Exception:
+            except Exception as e:
+                print(f"[DEBUG _serialize] dict failed: {e}")
                 pass
 
         # 降级为字符串
+        print(f"[DEBUG _serialize] Fallback to raw_response")
         return {"raw_response": str(response_obj)}
 
     def _clean_datetime_fields(self, data: dict) -> dict:
