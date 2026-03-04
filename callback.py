@@ -106,12 +106,15 @@ class LiteLLMCallbackHandler(CustomLogger):
         for key, value in data.items():
             if isinstance(value, datetime.datetime):
                 result[key] = value.isoformat()
-            elif isinstance(value, dict):
-                result[key] = self._clean_datetime_fields(value)
-            elif isinstance(value, list):
-                result[key] = [self._clean_datetime_fields(item) if isinstance(item, dict) else self._serialize_datetime_value(item) for item in value]
-            else:
                 result[key] = value
+
+        return result
+
+    def _serialize_datetime_value(self, value) -> Any:
+        """序列化单个值，如果是 datetime 则转换"""
+        if isinstance(value, datetime.datetime):
+            return value.isoformat()
+        return value
         return result
 
     def _serialize_datetime_value(self, value) -> Any:
