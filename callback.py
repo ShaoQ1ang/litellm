@@ -64,27 +64,52 @@ class LiteLLMCallbackHandler(CustomLogger):
 
     def _serialize_response(self, response_obj) -> dict:
         """将 ModelResponse 对象转换为可序列化的字典"""
+        import datetime
         if response_obj is None:
             return {}
         if isinstance(response_obj, dict):
-            return response_obj
+            return self._clean_datetime_fields(response_obj)
 
         # 尝试 Pydantic v2 的 model_dump
         if hasattr(response_obj, "model_dump"):
             try:
-                return response_obj.model_dump(exclude_none=True)
+                result = response_obj.model_dump(exclude_none=True)
+                return self._clean_datetime_fields(result)
             except Exception:
                 pass
 
         # 尝试 Pydantic v1 的 dict
         if hasattr(response_obj, "dict"):
             try:
-                return response_obj.dict(exclude_none=True)
+                result = response_obj.dict(exclude_none=True)
+                return self._clean_datetime_fields(result)
             except Exception:
                 pass
 
         # 降级为字符串
         return {"raw_response": str(response_obj)}
+
+    def _clean_datetime_fields(self, data: dict) -> dict:
+        """清理字典中的 datetime 字段，转换为 ISO 格式字符串"""
+        if not isinstance(data, dict):
+            return data
+        result = {}
+        for key, value in data.items():
+            if isinstance(value, datetime.datetime):
+                result[key] = value.isoformat()
+            elif isinstance(value, dict):
+                result[key] = self._clean_datetime_fields(value)
+            elif isinstance(value, list):
+                result[key] = [self._clean_datetime_fields(item) if isinstance(item, dict) else self._serialize_datetime_value(item) for item in value]
+            else:
+                result[key] = value
+        return result
+
+    def _serialize_datetime_value(self, value) -> Any:
+        """序列化单个值，如果是 datetime 则转换"""
+        if isinstance(value, datetime.datetime):
+            return value.isoformat()
+        return value
 
     def _extract_user_info(self, kwargs: dict) -> Dict[str, Any]:
         """从 kwargs 中提取用户信息"""
