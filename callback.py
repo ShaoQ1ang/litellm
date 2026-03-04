@@ -257,33 +257,61 @@ class LiteLLMCallbackHandler(CustomLogger):
             # 获取 metadata
             litellm_params = kwargs.get("litellm_params", {})
             metadata = litellm_params.get("metadata", {})
-
-            # === DEBUG: 详细日志 ===
-            print(f"[Debug] response_obj type: {type(response_obj)}")
-            print(f"[Debug] response_obj.model: {getattr(response_obj, 'model', 'N/A')}")
+            # 获取 hidden_params
             hidden_params = getattr(response_obj, '_hidden_params', {})
-            print(f"[Debug] hidden_params keys: {list(hidden_params.keys()) if hidden_params else 'None'}")
-            print(f"[Debug] hidden_params.litellm_model_name: {hidden_params.get('litellm_model_name', 'N/A')}")
-            print(f"[Debug] hidden_params.response_cost: {hidden_params.get('response_cost', 'N/A')}")
-            print(f"[Debug] kwargs.model: {model}")
-            # === END DEBUG ===
+            call_type = kwargs.get('call_type', 'unknown')
 
             # 序列化响应
             serialized_response = self._serialize_response(response_obj)
             usage = serialized_response.get("usage", {}) if isinstance(serialized_response, dict) else {}
 
-            # 计算费用 - 优先使用 hidden_params.response_cost
-            response_cost = hidden_params.get('response_cost')
-            if response_cost is not None:
-                cost = response_cost
-                print(f"[Debug] Using response_cost from hidden_params: {cost}")
-            else:
-                try:
-                    cost = litellm.completion_cost(completion_response=response_obj)
-                except Exception as e:
-                    print(f"[Debug] completion_cost exception: {e}")
-                    cost = 0.0
+            # === DEBUG: 完整调试信息 ===
+            print(f"\n{'='*60}")
+            print(f"[DEBUG] Call Type: {call_type}")
+            print(f"[DEBUG] Request ID: {request_id}")
+            print(f"[DEBUG] Model (kwargs): {model}")
+            print(f"[DEBUG] Model (response_obj): {getattr(response_obj, 'model', 'N/A')}")
+            print(f"[DEBUG] Model (hidden_params.litellm_model_name): {hidden_params.get('litellm_model_name', 'N/A')}")
+            print(f"\n[DEBUG] kwargs.response_cost: {kwargs.get('response_cost', 'N/A')}")
+            print(f"[DEBUG] hidden_params.response_cost: {hidden_params.get('response_cost', 'N/A')}")
+            print(f"\n[DEBUG] serialized_response type: {type(serialized_response)}")
+            print(f"[DEBUG] serialized_response keys: {list(serialized_response.keys()) if isinstance(serialized_response, dict) else 'N/A'}")
+            print(f"\n[DEBUG] usage: {usage}")
+            print(f"[DEBUG] usage type: {type(usage)}")
+            print(f"{'='*60}\n")
+            # === END DEBUG ===
 
+            # 计算费用 - 根据 call_type 使用不同策略
+            is_image_generation = call_type in ('aimage_generation', 'image_generation')
+            if is_image_generation:
+                # 图像生成：优先使用 hidden_params.response_cost（LiteLLM 已计算）
+                response_cost = hidden_params.get('response_cost')
+                if response_cost is not None:
+                    cost = response_cost
+                    print(f"[Debug] Image gen - Using response_cost from hidden_params: {cost}")
+                else:
+                    # Fallback: 尝试重新计算
+                    try:
+                        cost = litellm.completion_cost(completion_response=response_obj)
+                        print(f"[Debug] Image gen - Using completion_cost fallback: {cost}")
+                    except Exception as e:
+                        print(f"[Debug] Image gen - completion_cost exception: {e}")
+                        cost = 0.0
+            else:
+                # 其他类型（对话等）
+                # 优先使用 kwargs.response_cost（如果有自定义价格）
+                response_cost = kwargs.get('response_cost')
+                if response_cost is not None:
+                    cost = response_cost
+                    print(f"[Debug] {call_type} - Using response_cost from kwargs: {cost}")
+                else:
+                    # Fallback: 重新计算
+                    try:
+                        cost = litellm.completion_cost(completion_response=response_obj)
+                        print(f"[Debug] {call_type} - Using completion_cost fallback: {cost}")
+                    except Exception as e:
+                        print(f"[Debug] {call_type} - completion_cost exception: {e}")
+                        cost = 0.0
             # 构建并发送回调
             callback_data = self._build_callback_data(
                 request_id=request_id,
