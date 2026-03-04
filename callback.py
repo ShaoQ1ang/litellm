@@ -127,6 +127,7 @@ class LiteLLMCallbackHandler(CustomLogger):
             ),
             cost=cost,
             response=response,
+            metadata=metadata,
             start_time=start_time.astimezone().isoformat() if start_time else datetime.now().astimezone().isoformat(),
             end_time=end_time.astimezone().isoformat() if end_time else datetime.now().astimezone().isoformat(),
             status=status,
