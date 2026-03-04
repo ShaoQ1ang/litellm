@@ -258,16 +258,31 @@ class LiteLLMCallbackHandler(CustomLogger):
             litellm_params = kwargs.get("litellm_params", {})
             metadata = litellm_params.get("metadata", {})
 
+            # === DEBUG: 详细日志 ===
+            print(f"[Debug] response_obj type: {type(response_obj)}")
+            print(f"[Debug] response_obj.model: {getattr(response_obj, 'model', 'N/A')}")
+            hidden_params = getattr(response_obj, '_hidden_params', {})
+            print(f"[Debug] hidden_params keys: {list(hidden_params.keys()) if hidden_params else 'None'}")
+            print(f"[Debug] hidden_params.litellm_model_name: {hidden_params.get('litellm_model_name', 'N/A')}")
+            print(f"[Debug] hidden_params.response_cost: {hidden_params.get('response_cost', 'N/A')}")
+            print(f"[Debug] kwargs.model: {model}")
+            # === END DEBUG ===
+
             # 序列化响应
             serialized_response = self._serialize_response(response_obj)
             usage = serialized_response.get("usage", {}) if isinstance(serialized_response, dict) else {}
 
-            # 计算费用
-            try:
-                cost = litellm.completion_cost(completion_response=response_obj)
-            except Exception:
-                cost = 0.0
-            print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
+            # 计算费用 - 优先使用 hidden_params.response_cost
+            response_cost = hidden_params.get('response_cost')
+            if response_cost is not None:
+                cost = response_cost
+                print(f"[Debug] Using response_cost from hidden_params: {cost}")
+            else:
+                try:
+                    cost = litellm.completion_cost(completion_response=response_obj)
+                except Exception as e:
+                    print(f"[Debug] completion_cost exception: {e}")
+                    cost = 0.0
 
             # 构建并发送回调
             callback_data = self._build_callback_data(
