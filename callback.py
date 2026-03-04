@@ -125,7 +125,6 @@ class LiteLLMCallbackHandler(CustomLogger):
                 completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),
             ),
-            metadata={},
             cost=cost,
             response=response,
             start_time=start_time.astimezone().isoformat() if start_time else datetime.now().astimezone().isoformat(),
@@ -259,8 +258,6 @@ class LiteLLMCallbackHandler(CustomLogger):
 
             # 获取 metadata
             litellm_params = kwargs.get("litellm_params", {})
-            # 获取 metadata
-            litellm_params = kwargs.get("litellm_params", {})
             metadata = litellm_params.get("metadata", {})
             # 获取 hidden_params 和 call_type
             hidden_params = getattr(response_obj, '_hidden_params', {})
@@ -290,17 +287,6 @@ class LiteLLMCallbackHandler(CustomLogger):
                 except Exception:
                     cost = 0.0
 
-            print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
-
-            # 序列化响应
-            serialized_response = self._serialize_response(response_obj)
-            usage = serialized_response.get("usage", {}) if isinstance(serialized_response, dict) else {}
-
-            # 计算费用
-            try:
-                cost = litellm.completion_cost(completion_response=response_obj)
-            except Exception:
-                cost = 0.0
             print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
 
             # 构建并发送回调
