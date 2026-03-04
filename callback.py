@@ -69,13 +69,14 @@ class LiteLLMCallbackHandler(CustomLogger):
         if isinstance(response_obj, dict):
             return response_obj
 
-        # 直接返回 model_dump 或 dict，不手动处理 datetime
+        # 尝试 Pydantic v2 的 model_dump
         if hasattr(response_obj, "model_dump"):
             try:
                 return response_obj.model_dump(exclude_none=True)
             except Exception:
                 pass
 
+        # 尝试 Pydantic v1 的 dict
         if hasattr(response_obj, "dict"):
             try:
                 return response_obj.dict(exclude_none=True)
@@ -84,10 +85,6 @@ class LiteLLMCallbackHandler(CustomLogger):
 
         # 降级为字符串
         return {"raw_response": str(response_obj)}
-        """序列化单个值，如果是 datetime 则转换"""
-        if isinstance(value, datetime.datetime):
-            return value.isoformat()
-        return value
 
     def _extract_user_info(self, kwargs: dict) -> Dict[str, Any]:
         """从 kwargs 中提取用户信息"""
@@ -115,30 +112,28 @@ class LiteLLMCallbackHandler(CustomLogger):
         exception: str = "",
     ) -> CallbackData:
         """构建回调数据"""
-        # 兼容两种 token 格式：
-        # - 对话类型：prompt_tokens, completion_tokens
-        # - 图像类型：input_tokens, output_tokens
-        prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens", 0)
-        completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens", 0)
-        
         return CallbackData(
             request_id=request_id,
             model=model,
             messages=messages,
             user=user,
             usage=TokenUsage(
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
+                # 兼容两种 token 格式：
+                # - 对话类型：prompt_tokens, completion_tokens
+                # - 图像类型：input_tokens, output_tokens
+                prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens", 0),
+                completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),
             ),
+            metadata={},
             cost=cost,
             response=response,
-            metadata=metadata,
             start_time=start_time.astimezone().isoformat() if start_time else datetime.now().astimezone().isoformat(),
             end_time=end_time.astimezone().isoformat() if end_time else datetime.now().astimezone().isoformat(),
             status=status,
             exception=exception,
         )
+
     async def _send_callback(self, callback_data: CallbackData) -> bool:
         """
         发送回调数据到 Go 服务器
@@ -154,7 +149,7 @@ class LiteLLMCallbackHandler(CustomLogger):
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                 response = await client.post(
                     f"{CALLBACK_SERVER_URL}/callback",
-                    json=callback_data.model_dump_json(),
+                    json=callback_data.model_dump(),
                     headers={"Content-Type": "application/json"},
                 )
                 if response.status_code == 200:
@@ -264,8 +259,10 @@ class LiteLLMCallbackHandler(CustomLogger):
 
             # 获取 metadata
             litellm_params = kwargs.get("litellm_params", {})
+            # 获取 metadata
+            litellm_params = kwargs.get("litellm_params", {})
             metadata = litellm_params.get("metadata", {})
-            # 获取 hidden_params
+            # 获取 hidden_params 和 call_type
             hidden_params = getattr(response_obj, '_hidden_params', {})
             call_type = kwargs.get('call_type', 'unknown')
 
@@ -273,53 +270,39 @@ class LiteLLMCallbackHandler(CustomLogger):
             serialized_response = self._serialize_response(response_obj)
             usage = serialized_response.get("usage", {}) if isinstance(serialized_response, dict) else {}
 
-            # === DEBUG: 完整调试信息 ===
-            print(f"\n{'='*60}")
-            print(f"[DEBUG] Call Type: {call_type}")
-            print(f"[DEBUG] Request ID: {request_id}")
-            print(f"[DEBUG] Model (kwargs): {model}")
-            print(f"[DEBUG] Model (response_obj): {getattr(response_obj, 'model', 'N/A')}")
-            print(f"[DEBUG] Model (hidden_params.litellm_model_name): {hidden_params.get('litellm_model_name', 'N/A')}")
-            print(f"\n[DEBUG] kwargs.response_cost: {kwargs.get('response_cost', 'N/A')}")
-            print(f"[DEBUG] hidden_params.response_cost: {hidden_params.get('response_cost', 'N/A')}")
-            print(f"\n[DEBUG] serialized_response type: {type(serialized_response)}")
-            print(f"[DEBUG] serialized_response keys: {list(serialized_response.keys()) if isinstance(serialized_response, dict) else 'N/A'}")
-            print(f"\n[DEBUG] usage: {usage}")
-            print(f"[DEBUG] usage type: {type(usage)}")
-            print(f"{'='*60}\n")
-            # === END DEBUG ===
-
             # 计算费用 - 根据 call_type 使用不同策略
             is_image_generation = call_type in ('aimage_generation', 'image_generation')
             if is_image_generation:
-                # 图像生成：优先使用 hidden_params.response_cost（LiteLLM 已计算）
+                # 图像生成：优先使用 hidden_params.response_cost
                 response_cost = hidden_params.get('response_cost')
                 if response_cost is not None:
                     cost = response_cost
-                    print(f"[Debug] Image gen - Using response_cost from hidden_params: {cost}")
                 else:
                     # Fallback: 尝试重新计算
                     try:
                         cost = litellm.completion_cost(completion_response=response_obj)
-                        print(f"[Debug] Image gen - Using completion_cost fallback: {cost}")
-                    except Exception as e:
-                        print(f"[Debug] Image gen - completion_cost exception: {e}")
+                    except Exception:
                         cost = 0.0
             else:
                 # 其他类型（对话等）
-                # 优先使用 kwargs.response_cost（如果有自定义价格）
-                response_cost = kwargs.get('response_cost')
-                if response_cost is not None:
-                    cost = response_cost
-                    print(f"[Debug] {call_type} - Using response_cost from kwargs: {cost}")
-                else:
-                    # Fallback: 重新计算
-                    try:
-                        cost = litellm.completion_cost(completion_response=response_obj)
-                        print(f"[Debug] {call_type} - Using completion_cost fallback: {cost}")
-                    except Exception as e:
-                        print(f"[Debug] {call_type} - completion_cost exception: {e}")
-                        cost = 0.0
+                try:
+                    cost = litellm.completion_cost(completion_response=response_obj)
+                except Exception:
+                    cost = 0.0
+
+            print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
+
+            # 序列化响应
+            serialized_response = self._serialize_response(response_obj)
+            usage = serialized_response.get("usage", {}) if isinstance(serialized_response, dict) else {}
+
+            # 计算费用
+            try:
+                cost = litellm.completion_cost(completion_response=response_obj)
+            except Exception:
+                cost = 0.0
+            print(f"[Success] {request_id} | Model: {model} | Cost: {cost} | Tokens: {usage.get('total_tokens', 0)}")
+
             # 构建并发送回调
             callback_data = self._build_callback_data(
                 request_id=request_id,
