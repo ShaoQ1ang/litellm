@@ -197,7 +197,7 @@ class LiteLLMCallbackHandler(CustomLogger):
         try:
             # 构建请求体
             request_body = {
-                "api_key": api_key,
+                "api_key_hash": api_key,
                 "user_id": user_id or "",
                 "litellm_request_id": request_id or "",
                 "model": model,
