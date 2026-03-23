@@ -1,2 +1,3 @@
 litellm_settings:
   callbacks: custom_callbacks.proxy_handler_instance
+  drop_params: true
