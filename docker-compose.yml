@@ -14,8 +14,6 @@ services:
     ##############################################
     ports:
       - "4000:4000" # Map the container port to the host, change the host port if necessary
-    environment:
-      # DATABASE_URL, STORE_MODEL_IN_DB and other sensitive configs are loaded from .env file
     volumes:
       - ./config.yaml:/app/config.yaml
       - ./callback.py:/app/custom_callbacks.py
@@ -38,8 +36,6 @@ services:
     image: postgres:16
     restart: always
     container_name: litellm_db
-    environment:
-      # POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD are loaded from .env file
     ports:
       - "5432:5432"
     volumes:
