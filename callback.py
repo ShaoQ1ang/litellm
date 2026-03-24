@@ -9,6 +9,7 @@ LiteLLM Proxy 自定义回调处理器
 使用方法：
     export LITELLM_CALLBACK_URL="http://localhost:12345"
     export LITELLM_PRECHECK_URL="http://localhost:12345"
+    export EDGE_AUTH_HEADER="Bearer edge-local-test"
 """
 
 import os
@@ -26,7 +27,16 @@ from litellm.proxy.proxy_server import UserAPIKeyAuth, DualCache
 # 配置
 CALLBACK_SERVER_URL = os.getenv("LITELLM_CALLBACK_URL", "http://192.168.1.67:12345")
 PRECHECK_SERVER_URL = os.getenv("LITELLM_PRECHECK_URL", "http://192.168.1.67:12345")
+EDGE_AUTH_HEADER = os.getenv("EDGE_AUTH_HEADER", "")
 REQUEST_TIMEOUT = 5.0
+
+
+def _edge_headers() -> Dict[str, str]:
+    """构建 Edge API 请求头"""
+    headers = {"Content-Type": "application/json"}
+    if EDGE_AUTH_HEADER:
+        headers["Authorization"] = EDGE_AUTH_HEADER
+    return headers
 
 
 # ==================== 数据模型 ====================
@@ -150,7 +160,7 @@ class LiteLLMCallbackHandler(CustomLogger):
                 response = await client.post(
                     f"{CALLBACK_SERVER_URL}/callback",
                     json=callback_data.model_dump(),
-                    headers={"Content-Type": "application/json"},
+                    headers=_edge_headers(),
                 )
                 if response.status_code == 200:
                     return True
@@ -207,7 +217,7 @@ class LiteLLMCallbackHandler(CustomLogger):
                 response = await client.post(
                     f"{PRECHECK_SERVER_URL}/precheck",
                     json=request_body,
-                    headers={"Content-Type": "application/json"},
+                    headers=_edge_headers(),
                 )
 
                 if response.status_code == 200:
