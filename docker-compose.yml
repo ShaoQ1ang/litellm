@@ -4,7 +4,7 @@ services:
       context: .
       args:
         target: runtime
-    image: docker.litellm.ai/berriai/litellm:main-stable
+    image: swr.ap-southeast-1.myhuaweicloud.com/z-up/litellm
     #########################################
     ## Uncomment these lines to start proxy with a config.yaml file ##
     # volumes:
@@ -14,9 +14,15 @@ services:
     ##############################################
     ports:
       - "4000:4000" # Map the container port to the host, change the host port if necessary
-    environment:
-      DATABASE_URL: "postgresql://llmproxy:dbpassword9090@db:5432/litellm"
-      STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
+#    environment:
+      # DATABASE_URL: "postgresql://llmproxy:dbpassword9090@db:5432/litellm"
+      # STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
+      # Note: DATABASE_URL and STORE_MODEL_IN_DB are loaded from .env file
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./callback.py:/app/custom_callbacks.py
+    command:
+      - "--config=/app/config.yaml"
     env_file:
       - .env # Load local .env file
     depends_on:
@@ -34,10 +40,8 @@ services:
     image: postgres:16
     restart: always
     container_name: litellm_db
-    environment:
-      POSTGRES_DB: litellm
-      POSTGRES_USER: llmproxy
-      POSTGRES_PASSWORD: dbpassword9090
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     volumes:

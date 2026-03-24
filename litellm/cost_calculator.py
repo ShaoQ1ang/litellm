@@ -612,6 +612,8 @@ def _get_provider_for_cost_calc(
     return custom_llm_provider
 
 
+
+
 def _select_model_name_for_cost_calc(
     model: Optional[str],
     completion_response: Optional[Any],
@@ -1099,6 +1101,26 @@ def completion_cost(  # noqa: PLR0915
         ]
         if model is not None:
             potential_model_names.append(model)
+
+        #
+        # Fix: Add litellm_model_name from hidden_params as a fallback candidate.
+        #
+        # Problem: When using model aliases (e.g., "my-deepseek" -> "deepseek/deepseek-chat"),
+        # the response_obj.model contains the alias name which is not in litellm.model_cost.
+        # This causes cost calculation to fail with "model not mapped" error.
+        #
+        # Solution: The actual model name used for the API call is stored in
+        # hidden_params["litellm_model_name"]. Adding it to potential_model_names
+        # ensures the cost lookup succeeds.
+        #
+        _hidden_params = getattr(completion_response, "_hidden_params", None)
+        if _hidden_params is not None:
+            _litellm_model_name = _hidden_params.get("litellm_model_name")
+            if (
+                _litellm_model_name is not None
+                and _litellm_model_name not in potential_model_names
+            ):
+                potential_model_names.append(_litellm_model_name)
 
         for idx, model in enumerate(potential_model_names):
             try:
